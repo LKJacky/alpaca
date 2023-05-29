@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
 
-from .disll_op import SelfDistillMutator
+from .disll_op import SelfDistillMutator, layernorm2layernorm
+from .ops import QuantLinear
 
 
 class SelfDistillAlgorithm(nn.Module):
@@ -51,3 +52,32 @@ class SelfDistillAlgorithm(nn.Module):
             return super().__getattr__(name)
         except AttributeError:
             return getattr(self.model, name)
+
+
+def linear2qlinear(module: nn.Linear):
+    from torch.ao.quantization import QConfig, MinMaxObserver, default_observer
+    qconfig = QConfig(activation=MinMaxObserver.with_args(dtype=torch.qint8),
+                      weight=default_observer.with_args(dtype=torch.qint8))
+
+    new_module = QuantLinear(module.in_features,
+                             module.out_features,
+                             module.bias is not None,
+                             qconfig=qconfig)
+    new_module.load_state_dict(module.state_dict(),strict=False)
+    return new_module
+
+
+stu_op_generator = {
+    nn.LayerNorm: layernorm2layernorm,
+    nn.Linear: linear2qlinear
+}
+
+
+class QatDistillAlgorithm(SelfDistillAlgorithm):
+
+    def __init__(self, model: nn.Module) -> None:
+        nn.Module.__init__(self)
+        self.model = model
+
+        self.mutator = SelfDistillMutator(stu_op_generator=stu_op_generator)
+        self.mutator.prepare_from_supernet(self.model)

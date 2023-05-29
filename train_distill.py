@@ -236,7 +236,7 @@ def train():
         cache_dir=training_args.cache_dir,
     )
     
-    from distill.distill_model import SelfDistillAlgorithm
+    from distill.distill_model import SelfDistillAlgorithm,QatDistillAlgorithm
 
     tokenizer = transformers.AutoTokenizer.from_pretrained(
         model_args.model_name_or_path,
@@ -260,8 +260,8 @@ def train():
         tokenizer=tokenizer,
         model=model,
     )
-    model = SelfDistillAlgorithm(model)
-
+    model = QatDistillAlgorithm(model)
+    print(model)
     model.seqlen = training_args.model_max_length
     data_module = make_supervised_data_module(
         tokenizer=tokenizer,
